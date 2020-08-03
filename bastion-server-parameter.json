@@ -1,0 +1,18 @@
+[
+    {
+    "ParameterKey": "EnvironmentName",
+    "ParameterValue": "UdacityProject"
+    },
+    {
+    "ParameterKey": "YourPCIP",
+    "ParameterValue": "0.0.0.0/0"
+    },
+    {
+    "ParameterKey": "EC2InstanceOS",
+    "ParameterValue": "ami-07ebfd5b3428b6f4d"
+    },
+    {
+    "ParameterKey": "EC2InstanceType",
+    "ParameterValue": "t2.medium"
+    }
+]

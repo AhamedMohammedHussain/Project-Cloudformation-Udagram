@@ -1,0 +1,154 @@
+Description: >
+  This template deploys a Bastion Server.
+
+Parameters:
+    EnvironmentName:
+        Description: An Environment name that will be prefixed to resources
+        Type: String
+    YourPCIP:
+        Description: IP address of bastion host user,ie, their PC's IP
+        Type: String
+    EC2InstanceOS:
+        Description: OS of Ec2 instance
+        Type: String
+    EC2InstanceType:
+        Description: Ec2 instance types
+        Type : String
+
+Resources:
+  #IAM role is required for an EC2 instance
+  #S3 bucket is also required for EC2 instance
+  #Taken from AWS Documentation
+  RootRole:
+    Type: AWS::IAM::Role
+    Properties:
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Principal:
+            Service:
+            - ec2.amazonaws.com
+          Action:
+          - sts:AssumeRole
+      Path: "/"
+  Policies:
+    Type: AWS::IAM::Policy
+    Properties:
+      PolicyName: root
+      PolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+        - Effect: Allow
+          Action: "s3:*"
+          Resource: "*"
+      Roles:
+      - !Ref RootRole
+  RootInstanceProfile:
+    Type: AWS::IAM::InstanceProfile
+    Properties:
+      Path: /
+      Roles:
+      - !Ref RootRole
+
+  BastionSecurityGroup:
+    Type: AWS::EC2::SecurityGroup
+    Properties:
+      GroupDescription: SSH Access to Bastion Instance
+      VpcId:
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPCID"
+      SecurityGroupIngress:
+      - IpProtocol: tcp #inbound requests only through port 22 from IP of the Current user's local PC (means your laptop)
+        FromPort: '22'
+        ToPort: '22'
+        CidrIp: !Sub ${YourPCIP}
+      SecurityGroupEgress:
+      - IpProtocol: "-1" # A value of -1 indicates all ICMP/ICMPv6 types
+        CidrIp: 0.0.0.0/0
+
+  BastionEC2Instance1:
+    Type: AWS::EC2::Instance
+    DependsOn:
+    - BastionSecurityGroup
+    #- RootInstanceProfile
+    Properties:
+      #IamInstanceProfile: !Ref RootInstanceProfile
+      ImageId: !Ref EC2InstanceOS
+      InstanceType: !Ref EC2InstanceType
+      #KeyName: !Ref BastionHostSSHKeyName
+      SecurityGroupIds:
+      - Ref: BastionSecurityGroup
+      SubnetId: 
+        Fn::ImportValue: 
+          !Sub "${EnvironmentName}-PUB1-SN"
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip awscli -y
+          cd /home/ubuntu
+      IamInstanceProfile: !Ref RootInstanceProfile
+
+
+  EIP1:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: 
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPCID"
+
+  EIPAssociation1:
+    Type: AWS::EC2::EIPAssociation
+    DependsOn:
+    - BastionEC2Instance1
+    - EIP1
+    Properties:
+      InstanceId:
+        Ref: BastionEC2Instance1
+      AllocationId:
+        Fn::GetAtt:
+        - EIP1
+        - AllocationId
+
+  BastionEC2Instance2:
+    Type: AWS::EC2::Instance
+    DependsOn:
+    - BastionSecurityGroup
+    #- RootInstanceProfile
+    Properties:
+      #IamInstanceProfile: !Ref RootInstanceProfile
+      ImageId: !Ref EC2InstanceOS
+      InstanceType: !Ref EC2InstanceType
+      #KeyName: !Ref BastionHostSSHKeyName
+      SecurityGroupIds:
+      - Ref: BastionSecurityGroup
+      SubnetId: 
+        Fn::ImportValue: 
+          !Sub "${EnvironmentName}-PUB2-SN"
+      UserData:
+        Fn::Base64: !Sub |
+          #!/bin/bash
+          apt-get update -y
+          apt-get install unzip awscli -y
+          cd /home/ubuntu
+
+  EIP2:
+    Type: AWS::EC2::EIP
+    Properties:
+      Domain: 
+        Fn::ImportValue:
+          !Sub "${EnvironmentName}-VPCID"
+
+  EIPAssociation2:
+    Type: AWS::EC2::EIPAssociation
+    DependsOn:
+    - BastionEC2Instance2
+    - EIP2
+    Properties:
+      InstanceId:
+        Ref: BastionEC2Instance2
+      AllocationId:
+        Fn::GetAtt:
+        - EIP2
+        - AllocationId
